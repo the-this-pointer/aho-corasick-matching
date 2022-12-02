@@ -19,11 +19,7 @@
 # SOFTWARE.
 
 #
-# Locate test sources
-#
-FILE (GLOB_RECURSE bench_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
-
-#
 # Matching build rules
 #
-ADD_EXECUTABLE (matching ${bench_SRCS})
+ADD_EXECUTABLE (matching_test matching_test.cpp)
+ADD_EXECUTABLE (matching_bench matching_bench.cpp)
