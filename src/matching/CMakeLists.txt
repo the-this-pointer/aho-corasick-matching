@@ -1,4 +1,4 @@
-# Copyright (C) 2015 Christopher Gilbert.
+# Copyright (C) 2022 Rsomething.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,6 +18,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-ADD_SUBDIRECTORY (aho_corasick)
-ADD_SUBDIRECTORY (benchmark)
-ADD_SUBDIRECTORY (matching)
+#
+# Locate test sources
+#
+FILE (GLOB_RECURSE bench_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+
+#
+# Matching build rules
+#
+ADD_EXECUTABLE (matching ${bench_SRCS})

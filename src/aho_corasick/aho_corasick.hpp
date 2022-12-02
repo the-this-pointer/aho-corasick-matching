@@ -32,6 +32,7 @@
 #include <queue>
 #include <utility>
 #include <vector>
+#include <limits>
 
 namespace aho_corasick {
 
@@ -293,6 +294,7 @@ namespace aho_corasick {
 	template<typename CharType>
 	class state {
 	public:
+    typedef CharType                         type;
 		typedef state<CharType>*                 ptr;
 		typedef std::unique_ptr<state<CharType>> unique_ptr;
 		typedef std::basic_string<CharType>      string_type;
@@ -306,34 +308,52 @@ namespace aho_corasick {
 		size_t                         d_depth;
 		ptr                            d_root;
 		std::map<CharType, unique_ptr> d_success;
-		ptr                            d_failure;
-		string_collection              d_emits;
+    bool                           d_has_success;
+    ptr                            d_failure;
+    string_collection              d_emits;
+    type                           d_value; // used for matching against +/#
+    bool                           d_ending_pattern;
 
 	public:
-		state(): state(0) {}
+		state(): state(0, 0) {}
 
-		explicit state(size_t depth)
+		explicit state(size_t depth, type val)
 			: d_depth(depth)
 			, d_root(depth == 0 ? this : nullptr)
 			, d_success()
 			, d_failure(nullptr)
-			, d_emits() {}
+			, d_emits()
+      , d_value(val)
+      , d_has_success(false)
+      {}
 
 		ptr next_state(CharType character) const {
-			return next_state(character, false);
+			return next_state(character, false, false);
 		}
 
 		ptr next_state_ignore_root_state(CharType character) const {
-			return next_state(character, true);
+			return next_state(character, true, true);
 		}
 
 		ptr add_state(CharType character) {
 			auto next = next_state_ignore_root_state(character);
 			if (next == nullptr) {
-				next = new state<CharType>(d_depth + 1);
+				next = new state<CharType>(d_depth + 1, character);
 				d_success[character].reset(next);
+        if (next != this)
+          d_has_success = true;
 			}
 			return next;
+		}
+
+		ptr add_state(CharType character, ptr state) {
+			auto next = next_state_ignore_root_state(character);
+			if (next == nullptr) {
+				d_success[character].reset(state);
+        if (state != this)
+          d_has_success = true;
+      }
+			return state;
 		}
 
 		size_t get_depth() const { return d_depth; }
@@ -351,9 +371,17 @@ namespace aho_corasick {
 
 		string_collection get_emits() const { return d_emits; }
 
+    bool ending_pattern() { return d_ending_pattern; }
+
+    void set_ending_pattern(bool ending_pattern) { d_ending_pattern = ending_pattern; }
+
+    CharType value() { return d_value; }
+
 		ptr failure() const { return d_failure; }
 
 		void set_failure(ptr fail_state) { d_failure = fail_state; }
+
+    bool has_success() const {return d_has_success;}
 
 		state_collection get_states() const {
 			state_collection result;
@@ -372,14 +400,14 @@ namespace aho_corasick {
 		}
 
 	private:
-		ptr next_state(CharType character, bool ignore_root_state) const {
-			ptr result = nullptr;
-			auto found = d_success.find(character);
-			if (found != d_success.end()) {
-				result = found->second.get();
-			} else if (!ignore_root_state && d_root != nullptr) {
-				result = d_root;
-			}
+		ptr next_state(CharType character, bool ignore_root_state, bool state_insertion) const {
+      ptr result = nullptr;
+
+      auto found = d_success.find(character);
+      if (found != d_success.end()) {
+        result = found->second.get();
+      }
+
 			return result;
 		}
 	};
@@ -394,25 +422,16 @@ namespace aho_corasick {
 		typedef state<CharType>*        state_ptr_type;
 		typedef token<CharType>         token_type;
 		typedef emit<CharType>          emit_type;
+		typedef std::vector<state_ptr_type> state_collection;
 		typedef std::vector<token_type> token_collection;
-		typedef std::vector<emit_type>  emit_collection;
+		typedef std::map<emit_type, bool>  emit_collection;
 
 		class config {
-			bool d_allow_overlaps;
-			bool d_only_whole_words;
 			bool d_case_insensitive;
 
 		public:
 			config()
-				: d_allow_overlaps(true)
-				, d_only_whole_words(false)
-				, d_case_insensitive(false) {}
-
-			bool is_allow_overlaps() const { return d_allow_overlaps; }
-			void set_allow_overlaps(bool val) { d_allow_overlaps = val; }
-
-			bool is_only_whole_words() const { return d_only_whole_words; }
-			void set_only_whole_words(bool val) { d_only_whole_words = val; }
+				: d_case_insensitive(false) {}
 
 			bool is_case_insensitive() const { return d_case_insensitive; }
 			void set_case_insensitive(bool val) { d_case_insensitive = val; }
@@ -451,9 +470,32 @@ namespace aho_corasick {
 			if (keyword.empty())
 				return;
 			state_ptr_type cur_state = d_root.get();
+      state_ptr_type last_multi_wildcard = nullptr;
+
 			for (const auto& ch : keyword) {
 				cur_state = cur_state->add_state(ch);
+
+        // Of course! I know that handling failures this way, could bring some bugs for matching topics later,
+        // I'll be return and fix this section later...
+        // topics with multiple # and +s will have some problems because of this!
+        switch (ch) {
+          case '.':
+            if (last_multi_wildcard)
+              cur_state->set_failure(last_multi_wildcard);
+            break;
+          case '+':
+            cur_state->add_state('+', cur_state);
+            break;
+          case '#':
+            cur_state->add_state('#', cur_state);
+            last_multi_wildcard = cur_state;
+            break;
+        }
 			}
+
+      if (cur_state != d_root.get())
+        cur_state->set_ending_pattern(true);
+
 			cur_state->add_emit(keyword, d_num_keywords++);
 			d_constructed_failure_states = false;
 		}
@@ -483,25 +525,50 @@ namespace aho_corasick {
 		}
 
 		emit_collection parse_text(string_type text) {
-			check_construct_failure_states();
 			size_t pos = 0;
-			state_ptr_type cur_state = d_root.get();
 			emit_collection collected_emits;
-			for (auto c : text) {
+
+      state_collection prev_states;
+      state_collection cur_states;
+      prev_states.reserve(32);
+      cur_states.reserve(32);
+      prev_states.push_back(d_root.get());
+
+      for (auto c : text) {
 				if (d_config.is_case_insensitive()) {
 					c = std::tolower(c);
 				}
-				cur_state = get_state(cur_state, c);
-				store_emits(pos, cur_state, collected_emits);
-				pos++;
-			}
-			if (d_config.is_only_whole_words()) {
-				remove_partial_matches(text, collected_emits);
-			}
-			if (!d_config.is_allow_overlaps()) {
-				interval_tree<emit_type> tree(typename interval_tree<emit_type>::interval_collection(collected_emits.begin(), collected_emits.end()));
-				auto tmp = tree.remove_overlaps(collected_emits);
-				collected_emits.swap(tmp);
+
+        for (auto& cur_state: prev_states)
+        {
+          auto state = get_state(cur_state, c);
+          if (state)
+          {
+            if (!state->has_success() && pos + 1 == text.length())  // state finished
+              store_emits(pos, state, collected_emits);
+            cur_states.push_back(state);
+          }
+
+          if (!(cur_state->value() == '+' && c == '.')) {
+            state = get_state(cur_state, '+');
+            if (state) {
+              if ((!state->has_success() || state->ending_pattern()) && pos + 1 == text.length())  // state finished
+                store_emits(pos, state, collected_emits);
+              cur_states.push_back(state);
+            }
+          }
+
+          state = get_state(cur_state, '#');
+          if (state)
+          {
+            if ((!state->has_success() || state->ending_pattern()) && pos + 1 == text.length())  // state finished
+              store_emits(pos, state, collected_emits);
+            cur_states.push_back(state);
+          }
+        }
+
+        prev_states = std::move(cur_states);
+        pos++;
 			}
 			return emit_collection(collected_emits);
 		}
@@ -523,63 +590,15 @@ namespace aho_corasick {
 			return token_type(str, e);
 		}
 
-		void remove_partial_matches(string_ref_type search_text, emit_collection& collected_emits) const {
-			size_t size = search_text.size();
-			emit_collection remove_emits;
-			for (const auto& e : collected_emits) {
-				if ((e.get_start() == 0 || !std::isalpha(search_text.at(e.get_start() - 1))) &&
-					(e.get_end() + 1 == size || !std::isalpha(search_text.at(e.get_end() + 1)))
-					) {
-					continue;
-				}
-				remove_emits.push_back(e);
-			}
-			for (auto& e : remove_emits) {
-				collected_emits.erase(
-					std::find(collected_emits.begin(), collected_emits.end(), e)
-					);
-			}
-		}
-
 		state_ptr_type get_state(state_ptr_type cur_state, CharType c) const {
 			state_ptr_type result = cur_state->next_state(c);
 			while (result == nullptr) {
 				cur_state = cur_state->failure();
+        if (cur_state == nullptr)
+          break;
 				result = cur_state->next_state(c);
 			}
 			return result;
-		}
-
-		void check_construct_failure_states() {
-			if (!d_constructed_failure_states) {
-				construct_failure_states();
-			}
-		}
-
-		void construct_failure_states() {
-			std::queue<state_ptr_type> q;
-			for (auto& depth_one_state : d_root->get_states()) {
-				depth_one_state->set_failure(d_root.get());
-				q.push(depth_one_state);
-			}
-			d_constructed_failure_states = true;
-
-			while (!q.empty()) {
-				auto cur_state = q.front();
-				for (const auto& transition : cur_state->get_transitions()) {
-					state_ptr_type target_state = cur_state->next_state(transition);
-					q.push(target_state);
-
-					state_ptr_type trace_failure_state = cur_state->failure();
-					while (trace_failure_state->next_state(transition) == nullptr) {
-						trace_failure_state = trace_failure_state->failure();
-					}
-					state_ptr_type new_failure_state = trace_failure_state->next_state(transition);
-					target_state->set_failure(new_failure_state);
-					target_state->add_emit(new_failure_state->get_emits());
-				}
-				q.pop();
-			}
 		}
 
 		void store_emits(size_t pos, state_ptr_type cur_state, emit_collection& collected_emits) const {
@@ -587,7 +606,7 @@ namespace aho_corasick {
 			if (!emits.empty()) {
 				for (const auto& str : emits) {
 					auto emit_str = typename emit_type::string_type(str.first);
-					collected_emits.push_back(emit_type(pos - emit_str.size() + 1, pos, emit_str, str.second));
+					collected_emits[emit_type(pos - emit_str.size() + 1, pos, emit_str, str.second)] = true;
 				}
 			}
 		}

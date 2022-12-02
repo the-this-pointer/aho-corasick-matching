@@ -69,6 +69,28 @@ size_t bench_aho_corasick(vector<string> text_strings, trie& t) {
 	return count;
 }
 
+/*
+ * Output on my Intel Core i7 11th generation laptop:
+*** Aho-Corasick Benchmark ***
+Generating input text ... done
+Generating search patterns ... done
+Generating trie ... done
+Running .......... done
+Results:
+  loop #1, naive: 1364ms, ac: 4ms
+  loop #2, naive: 1484ms, ac: 4ms
+  loop #3, naive: 1639ms, ac: 4ms
+  loop #4, naive: 1341ms, ac: 4ms
+  loop #5, naive: 1799ms, ac: 5ms
+  loop #6, naive: 1404ms, ac: 4ms
+  loop #7, naive: 1409ms, ac: 4ms
+  loop #8, naive: 1413ms, ac: 4ms
+  loop #9, naive: 1388ms, ac: 4ms
+  loop #10, naive: 1403ms, ac: 11494ms
+
+Process finished with exit code 0
+ */
+
 int main(int argc, char** argv) {
 	cout << "*** Aho-Corasick Benchmark ***" << endl;
 
