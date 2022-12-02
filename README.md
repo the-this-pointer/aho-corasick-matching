@@ -1,66 +1,84 @@
-# Aho-Corasick Implementation (C++)
+# Aho-Corasick Implementation For Topic Matching Purposes (C++)
 
-This is a header only implementation of the aho-corasick pattern search algorithm invented by Alfred V. Aho and Margaret J. Corasick. It is a very efficient dictionary matching algorithm that can locate all search patterns against in input text simultaneously in O(n + m), with space complexity O(m) (where n is the length of the input text, and m is the combined length of the search patterns).
+The code is taken from [here](https://github.com/cjgdev/aho_corasick) and
+you can see the examples of the algorithm there. I modified the source code and
+added wildcard matching for a personal project to examine the performance. It's not
+a standard modification of the algorithm.
 
-To compile the code, your compiler must minimally support the following features of the C++11 standard:
-- Range-based for loops.
-- std::unique_ptr.
-- auto.
 
-Additionally, the benchmark makes use of chrono.
+It's not supposed to be a high-performance source code, and nothing but the algorithm
+is not related to the speed here. Contribution appreciated for contribution to increase the performance.
 
-## Usage
+Given the inputs:
 
-The following will create a narrow string trie (for wide string support use aho_corasick::wtrie), add a couple of patterns to the trie, and then search for them in the input text.
-
-```cpp
-aho_corasick::trie trie;
-trie.insert("hers");
-trie.insert("his");
-trie.insert("she");
-trie.insert("he");
-auto result = trie.parse_text("ushers");
+```
+hi.mom
+hi.there
+hi.alex.how.are.you?
+hi.james.how.are.you?
+hi.james.bond.how.are.you?
+im.patrick
+im.patrick.bond
+im.james.bond
+im.not.james.bond
 ```
 
-It is also possible to remove overlapping instances, although it should be noted that this won't lower the runtime complexity. The rules that govern conflict resolution are 1. longer matches are favoured over shorter matches, and 2. left-most matches are favoured over right-most matches.
+And some patterns:
 
-```cpp
-aho_corasick::trie trie;
-trie.remove_overlaps();
-trie.insert("hot");
-trie.insert("hot chocolate");
-auto result = trie.parse_text("hot chocolate");
+```
+hi.#
+hi.there
+hi.mom
+hi.+.how.are.you?
+im.james.bond
+im.+.bond
+im.#.bond
+im.#
 ```
 
-Sometimes it is relevant to search an input text which features a mixed case, making it harder to find matches. In this instance, the trie can lowercase the input text to ease the matching process.
+The output for matching test program:
 
-```cpp
-aho_corasick::trie trie;
-trie.case_insensitive();
-trie.insert("casing");
-auto result = trie.parse_text("CaSiNg");
 ```
-
-For some use-cases it is necessary to process both matching and non-matching text. In this case, you can use trie::tokenise.
-
-```cpp
-aho_corasick::trie trie;
-trie.remove_overlaps()
-    .only_whole_words()
-    .case_insensitive();
-trie.insert("great question");
-trie.insert("forty-two");
-trie.insert("deep thought");
-auto tokens = trie.tokenise("The Answer to the Great Question... Of Life, the Universe and Everything... Is... Forty-two, said Deep Thought, with infinite majesty and calm.");
-std::stringstream html;
-html << "<html><body><p>";
-for (const auto& token : tokens) {
-	if (token.is_match()) html << "<i>";
-	html << token.get_fragment();
-	if (token.is_match()) html << "</i>";
-}
-html << "</p></body></html>";
-std::cout << html.str();
+*** Aho-Corasick Matching Test ***
+Generating input text ... done
+Generating search patterns ... done
+Generating trie ... done
+Running =====================================================
+>> result [hi.alex.how.are.you?] : true, 0ms
+match: hi.+.how.are.you?
+match: hi.#
+=====================================================
+>> result [hi.james.bond.how.are.you?] : true, 0ms
+match: hi.#
+=====================================================
+>> result [hi.james.how.are.you?] : true, 0ms
+match: hi.+.how.are.you?
+match: hi.#
+=====================================================
+>> result [hi.mom] : true, 0ms
+match: hi.mom
+match: hi.#
+=====================================================
+>> result [hi.there] : true, 0ms
+match: hi.there
+match: hi.#
+=====================================================
+>> result [im.james.bond] : true, 0ms
+match: im.james.bond
+match: im.+.bond
+match: im.#
+=====================================================
+>> result [im.not.james.bond] : true, 0ms
+match: im.#.bond
+match: im.#
+=====================================================
+>> result [im.patrick] : true, 0ms
+match: im.#
+=====================================================
+>> result [im.patrick.bond] : true, 0ms
+match: im.+.bond
+match: im.#
+ done
 ```
 
 ## License

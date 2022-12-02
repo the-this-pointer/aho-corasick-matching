@@ -21,5 +21,5 @@
 #
 # Matching build rules
 #
-ADD_EXECUTABLE (matching_test matching_test.cpp)
+ADD_EXECUTABLE (matching_example matching_example.cpp)
 ADD_EXECUTABLE (matching_bench matching_bench.cpp)
