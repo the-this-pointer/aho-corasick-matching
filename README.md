@@ -7,7 +7,7 @@ a standard modification of the algorithm.
 
 
 It's not supposed to be a high-performance source code, and nothing but the algorithm
-is not related to the speed here. Contribution appreciated for contribution to increase the performance.
+is not related to the speed here. Contribution appreciated to increase the performance.
 
 Given the inputs:
 
