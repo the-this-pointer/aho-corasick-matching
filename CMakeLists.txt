@@ -21,7 +21,7 @@
 #
 # Project Properties
 #
-CMAKE_MINIMUM_REQUIRED (VERSION 2.6.2)
+CMAKE_MINIMUM_REQUIRED (VERSION 3.23)
 PROJECT (aho_corasick)
 
 #
