@@ -51,6 +51,7 @@ int main(int argc, char** argv) {
   cout << "Generating search patterns ...";
 	set<string> patterns;
   patterns.insert("hi.#");
+  patterns.insert("hi.+");
   patterns.insert("hi.there");
   patterns.insert("hi.mom");
   patterns.insert("hi.+.how.are.you?");
