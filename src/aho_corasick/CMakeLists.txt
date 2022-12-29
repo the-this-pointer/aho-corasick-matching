@@ -31,3 +31,6 @@ FOREACH (H_FILE ${ac_HDRS})
 	STRING (REGEX MATCH "(.*)[/\\]" DIR ${H_FILE})
 	INSTALL (FILES ${H_FILE} DESTINATION include/${H_INSTALL_DIR}/${DIR})
 ENDFOREACH (H_FILE ${ac_HDRS})
+
+add_library(aho-corasick-matching INTERFACE)
+target_include_directories(aho-corasick-matching INTERFACE .)
